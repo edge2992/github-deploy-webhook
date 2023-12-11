@@ -25,18 +25,8 @@ func init() {
 }
 
 func verifySignature(message, providedSignature []byte) bool {
-
-<<<<<<< HEAD
-func verifySignature(message, providedSignature []byte, timestamp int64) bool {
-	if time.Now().Unix()-timestamp > 300 {
-		return false
-	}
-
-=======
->>>>>>> 770b7ef44b3cf6e66d8d7b8a472789d7c06cb1bf
 	mac := hmac.New(sha256.New, secret)
 	mac.Write(message)
-	mac.Write([]byte(fmt.Sprintf("%d", timestamp)))
 	expectedMAC := mac.Sum(nil)
 	expectedSignature := fmt.Sprintf("sha256=%x", expectedMAC)
 	return hmac.Equal([]byte(expectedSignature), providedSignature)
