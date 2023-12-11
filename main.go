@@ -3,22 +3,37 @@ package main
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
 	"strconv"
 	"time"
 )
 
-var secret = []byte("adfgadfe123FDSa")
+var secret []byte
 
+func init() {
+	secretKey := os.Getenv("WEBHOOK_SECRET")
+	if secretKey == "" {
+		log.Fatal("WEBHOOK_SECRET environment variable not set")
+	}
+	secret = []byte(secretKey)
+}
+
+func verifySignature(message, providedSignature []byte) bool {
+
+<<<<<<< HEAD
 func verifySignature(message, providedSignature []byte, timestamp int64) bool {
 	if time.Now().Unix()-timestamp > 300 {
 		return false
 	}
 
+=======
+>>>>>>> 770b7ef44b3cf6e66d8d7b8a472789d7c06cb1bf
 	mac := hmac.New(sha256.New, secret)
 	mac.Write(message)
 	mac.Write([]byte(fmt.Sprintf("%d", timestamp)))
@@ -39,14 +54,30 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error reading body", http.StatusInternalServerError)
 		return
 	}
-
-	timestamp, err := strconv.ParseInt(r.Header.Get("X-Hub-Timestamp"), 10, 64)
-	if err != nil {
-		http.Error(w, "Invalid timestamp", http.StatusBadRequest)
+	var jsonData map[string]interface{}
+	if err := json.Unmarshal(body, &jsonData); err != nil {
+		http.Error(w, "Error parsing body", http.StatusBadRequest)
 		return
 	}
 
-	if !verifySignature(body, []byte(signature), timestamp) {
+	if timestampStr, ok := jsonData["timestamp"].(string); ok {
+		if timestamp, err := strconv.ParseInt(timestampStr, 10, 64); err == nil {
+			t := time.Unix(timestamp, 0)
+			if time.Since(t) > 5*time.Minute {
+				log.Printf("Signature expired: %s", t.Format(time.RFC3339))
+				http.Error(w, "Signature expired", http.StatusUnauthorized)
+				return
+			}
+		} else {
+			http.Error(w, "Invalid timestamp format", http.StatusBadRequest)
+			return
+		}
+	} else {
+		http.Error(w, "Timestamp missing", http.StatusBadRequest)
+		return
+	}
+
+	if !verifySignature(body, []byte(signature)) {
 		http.Error(w, "Invalid signature", http.StatusForbidden)
 		return
 	}
@@ -63,7 +94,6 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 	log.Println("Deployment script succeeded")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Deployment script succeeded"))
-	// 応答を返す
 }
 
 func main() {
