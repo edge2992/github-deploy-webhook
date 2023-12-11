@@ -34,6 +34,7 @@ func verifySignature(message, providedSignature []byte) bool {
 
 func handleWebhook(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
+		log.Println("Invalid method")
 		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
 		return
 	}
@@ -41,11 +42,13 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 	signature := r.Header.Get("X-Hub-Signature-256")
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		log.Println("Error reading body")
 		http.Error(w, "Error reading body", http.StatusInternalServerError)
 		return
 	}
 	var jsonData map[string]interface{}
 	if err := json.Unmarshal(body, &jsonData); err != nil {
+		log.Println("Error parsing body")
 		http.Error(w, "Error parsing body", http.StatusBadRequest)
 		return
 	}
@@ -59,15 +62,18 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		} else {
+			log.Println("Invalid timestamp format")
 			http.Error(w, "Invalid timestamp format", http.StatusBadRequest)
 			return
 		}
 	} else {
+		log.Println("Timestamp missing")
 		http.Error(w, "Timestamp missing", http.StatusBadRequest)
 		return
 	}
 
 	if !verifySignature(body, []byte(signature)) {
+		log.Println("Invalid signature")
 		http.Error(w, "Invalid signature", http.StatusForbidden)
 		return
 	}
