@@ -3,16 +3,20 @@ package main
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os/exec"
+	"strconv"
+	"time"
 )
 
 var secret = []byte("adfgadfe123FDSa")
 
-func varifySignature(message, providedSignature []byte) bool {
+func verifySignature(message, providedSignature []byte) bool {
+
 	mac := hmac.New(sha256.New, secret)
 	mac.Write(message)
 	expectedMAC := mac.Sum(nil)
@@ -32,8 +36,31 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error reading body", http.StatusInternalServerError)
 		return
 	}
+	var jsonData map[string]interface{}
+	if err := json.Unmarshal(body, &jsonData); err != nil {
+		http.Error(w, "Error parsing body", http.StatusBadRequest)
+		return
+	}
 
-	if !varifySignature(body, []byte(signature)) {
+	if timestampStr, ok := jsonData["timestamp"].(string); ok {
+		// TIMESTAMP=$(date +%s)
+		if timestamp, err := strconv.ParseInt(timestampStr, 10, 64); err == nil {
+			t := time.Unix(timestamp, 0)
+			if time.Since(t) > 5*time.Minute {
+				log.Printf("Signature expired: %s", t.Format(time.RFC3339))
+				http.Error(w, "Signature expired", http.StatusUnauthorized)
+				return
+			}
+		} else {
+			http.Error(w, "Invalid timestamp format", http.StatusBadRequest)
+			return
+		}
+	} else {
+		http.Error(w, "Timestamp missing", http.StatusBadRequest)
+		return
+	}
+
+	if !verifySignature(body, []byte(signature)) {
 		http.Error(w, "Invalid signature", http.StatusForbidden)
 		return
 	}
