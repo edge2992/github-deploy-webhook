@@ -8,12 +8,21 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
 	"strconv"
 	"time"
 )
 
-var secret = []byte("adfgadfe123FDSa")
+var secret []byte
+
+func init() {
+	secretKey := os.Getenv("WEBHOOK_SECRET")
+	if secretKey == "" {
+		log.Fatal("WEBHOOK_SECRET environment variable not set")
+	}
+	secret = []byte(secretKey)
+}
 
 func verifySignature(message, providedSignature []byte) bool {
 
@@ -77,7 +86,6 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 	log.Println("Deployment script succeeded")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Deployment script succeeded"))
-	// 応答を返す
 }
 
 func main() {
