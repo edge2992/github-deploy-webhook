@@ -8,13 +8,20 @@ import (
 	"log"
 	"net/http"
 	"os/exec"
+	"strconv"
+	"time"
 )
 
 var secret = []byte("adfgadfe123FDSa")
 
-func varifySignature(message, providedSignature []byte) bool {
+func verifySignature(message, providedSignature []byte, timestamp int64) bool {
+	if time.Now().Unix()-timestamp > 300 {
+		return false
+	}
+
 	mac := hmac.New(sha256.New, secret)
 	mac.Write(message)
+	mac.Write([]byte(fmt.Sprintf("%d", timestamp)))
 	expectedMAC := mac.Sum(nil)
 	expectedSignature := fmt.Sprintf("sha256=%x", expectedMAC)
 	return hmac.Equal([]byte(expectedSignature), providedSignature)
@@ -33,7 +40,13 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !varifySignature(body, []byte(signature)) {
+	timestamp, err := strconv.ParseInt(r.Header.Get("X-Hub-Timestamp"), 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid timestamp", http.StatusBadRequest)
+		return
+	}
+
+	if !verifySignature(body, []byte(signature), timestamp) {
 		http.Error(w, "Invalid signature", http.StatusForbidden)
 		return
 	}
